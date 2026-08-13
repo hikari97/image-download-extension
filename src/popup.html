@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Image Pocket</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d="M5 3.75h14A2.25 2.25 0 0 1 21.25 6v12A2.25 2.25 0 0 1 19 20.25H5A2.25 2.25 0 0 1 2.75 18V6A2.25 2.25 0 0 1 5 3.75Z" />
+            <path d="m3.75 16 4.1-4.1a1.7 1.7 0 0 1 2.4 0l1.55 1.55 2.25-2.25a1.7 1.7 0 0 1 2.4 0l3.8 3.8" />
+            <circle cx="15.75" cy="8.25" r="1.5" />
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <h1>Image Pocket</h1>
+          <p id="pageHost">Memindai halaman…</p>
+        </div>
+        <button id="refreshButton" class="icon-button" type="button" title="Pindai ulang" aria-label="Pindai ulang">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M20 6v5h-5M4 18v-5h5" />
+            <path d="M18.4 10a7 7 0 0 0-12-2.4L4 10m2 4a7 7 0 0 0 11.6 2.4L20 14" />
+          </svg>
+        </button>
+      </header>
+
+      <section class="toolbar" aria-label="Filter gambar">
+        <label class="search-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="m16 16 4 4" />
+          </svg>
+          <input id="searchInput" type="search" placeholder="Cari nama atau tipe gambar" autocomplete="off" />
+        </label>
+        <label class="size-filter">
+          <span>Min.</span>
+          <select id="sizeFilter" aria-label="Ukuran gambar minimum">
+            <option value="0">Semua ukuran</option>
+            <option value="200">200 px</option>
+            <option value="500">500 px</option>
+            <option value="1000">1000 px</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="selection-bar">
+        <div>
+          <strong id="resultCount">0 gambar</strong>
+          <span id="selectedCount">0 dipilih</span>
+        </div>
+        <div class="selection-actions">
+          <button id="selectAllButton" class="text-button" type="button">Pilih semua</button>
+          <button id="clearButton" class="text-button muted" type="button">Kosongkan</button>
+        </div>
+      </section>
+
+      <div class="content">
+        <section id="notice" class="notice hidden" role="status"></section>
+
+        <section id="loadingState" class="state-panel">
+          <span class="spinner" aria-hidden="true"></span>
+          <h2>Sedang mencari gambar</h2>
+          <p>Kami memeriksa gambar dan latar belakang pada halaman ini.</p>
+        </section>
+
+        <section id="emptyState" class="state-panel hidden">
+          <div class="empty-icon" aria-hidden="true">◇</div>
+          <h2>Tidak ada gambar ditemukan</h2>
+          <p>Coba muat seluruh halaman, lalu pindai ulang.</p>
+        </section>
+
+        <section id="imageGrid" class="image-grid hidden" aria-label="Daftar gambar"></section>
+      </div>
+
+      <footer class="footer">
+        <label class="folder-field">
+          <span>Simpan ke folder</span>
+          <input id="folderInput" type="text" value="Image Pocket" maxlength="120" aria-label="Folder unduhan" />
+        </label>
+        <button id="downloadButton" class="download-button" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+          </svg>
+          <span>Unduh pilihan</span>
+        </button>
+      </footer>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
