@@ -3,6 +3,10 @@ const state = {
   selected: new Set(),
   query: "",
   minSize: 0,
+  pageUrl: "",
+  refererInitialized: false,
+  applyingReferer: false,
+  previewRevision: 0,
   scanning: false,
   downloading: false
 };
@@ -12,6 +16,9 @@ const elements = {
   refreshButton: document.querySelector("#refreshButton"),
   searchInput: document.querySelector("#searchInput"),
   sizeFilter: document.querySelector("#sizeFilter"),
+  refererInput: document.querySelector("#refererInput"),
+  pageRefererButton: document.querySelector("#pageRefererButton"),
+  applyRefererButton: document.querySelector("#applyRefererButton"),
   resultCount: document.querySelector("#resultCount"),
   selectedCount: document.querySelector("#selectedCount"),
   selectAllButton: document.querySelector("#selectAllButton"),
@@ -21,8 +28,11 @@ const elements = {
   emptyState: document.querySelector("#emptyState"),
   imageGrid: document.querySelector("#imageGrid"),
   folderInput: document.querySelector("#folderInput"),
+  customNameInput: document.querySelector("#customNameInput"),
   downloadButton: document.querySelector("#downloadButton")
 };
+
+const popupPort = chrome.runtime.connect({ name: "IMAGE_POCKET_POPUP" });
 
 document.addEventListener("DOMContentLoaded", scanPage);
 elements.refreshButton.addEventListener("click", scanPage);
@@ -34,6 +44,17 @@ elements.sizeFilter.addEventListener("change", (event) => {
   state.minSize = Number(event.target.value);
   render();
 });
+elements.refererInput.addEventListener("input", () => {
+  elements.refererInput.classList.remove("invalid");
+});
+elements.refererInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") applyCustomReferer();
+});
+elements.pageRefererButton.addEventListener("click", () => {
+  elements.refererInput.value = state.pageUrl;
+  applyCustomReferer();
+});
+elements.applyRefererButton.addEventListener("click", applyCustomReferer);
 elements.selectAllButton.addEventListener("click", selectAllVisible);
 elements.clearButton.addEventListener("click", () => {
   state.selected.clear();
@@ -57,6 +78,12 @@ async function scanPage() {
     }
 
     elements.pageHost.textContent = getHostname(tab.url);
+    state.pageUrl = tab.url;
+    if (!state.refererInitialized) {
+      elements.refererInput.value = tab.url;
+      state.refererInitialized = true;
+    }
+
     const injectionResults = await executeScript({
       target: { tabId: tab.id },
       func: collectPageImages
@@ -64,6 +91,12 @@ async function scanPage() {
 
     const rawImages = injectionResults?.[0]?.result || [];
     state.images = normalizeImages(rawImages);
+
+    try {
+      await configureRefererRules(elements.refererInput.value, state.images.map((image) => image.url));
+    } catch (error) {
+      showNotice(`Gambar tetap ditampilkan tanpa custom Referer: ${readError(error)}`, true);
+    }
 
     if (state.images.length > 0) {
       state.selected = new Set(state.images.map((image) => image.id));
@@ -163,6 +196,7 @@ function sanitizeFilename(value) {
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "-")
     .replace(/\s+/g, " ")
     .replace(/^\.+/, "")
+    .replace(/[. ]+$/, "")
     .trim()
     .slice(0, 180);
 }
@@ -209,6 +243,8 @@ function render() {
     ? "Batalkan semua"
     : "Pilih semua";
   elements.downloadButton.disabled = state.selected.size === 0 || state.downloading;
+  elements.applyRefererButton.disabled = state.applyingReferer || state.scanning;
+  elements.pageRefererButton.disabled = state.applyingReferer || state.scanning || !state.pageUrl;
 
   if (state.downloading) {
     elements.downloadButton.querySelector("span").textContent = "Menyiapkan…";
@@ -237,12 +273,15 @@ function createImageCard(image) {
   const thumb = document.createElement("div");
   thumb.className = "thumb";
   const img = document.createElement("img");
-  img.src = image.url;
+  img.src = createPreviewUrl(image.url);
   img.alt = "";
   img.loading = "lazy";
   img.addEventListener("error", () => {
     img.remove();
-    thumb.textContent = "Pratinjau gagal";
+    thumb.classList.add("preview-error");
+    thumb.textContent = image.url.startsWith("blob:")
+      ? "Preview blob hanya tersedia di halaman asal"
+      : "Preview gagal — coba ubah HTTP Referer";
   });
   thumb.append(img);
 
@@ -262,6 +301,83 @@ function createImageCard(image) {
   meta.append(name, detail);
   card.append(checkbox, thumb, meta);
   return card;
+}
+
+async function applyCustomReferer() {
+  if (state.applyingReferer || state.scanning) return;
+
+  state.applyingReferer = true;
+  elements.refererInput.classList.remove("invalid");
+  elements.applyRefererButton.textContent = "Menerapkan…";
+  hideNotice();
+  render();
+
+  try {
+    const referer = await configureRefererRules(
+      elements.refererInput.value,
+      state.images.map((image) => image.url)
+    );
+    elements.refererInput.value = referer;
+    state.previewRevision += 1;
+    elements.applyRefererButton.textContent = "Diterapkan";
+  } catch (error) {
+    elements.refererInput.classList.add("invalid");
+    elements.applyRefererButton.textContent = "Terapkan";
+    showNotice(readError(error), true);
+  } finally {
+    state.applyingReferer = false;
+    render();
+    setTimeout(() => {
+      if (!state.applyingReferer) elements.applyRefererButton.textContent = "Terapkan";
+    }, 1200);
+  }
+}
+
+async function configureRefererRules(value, urls) {
+  const referer = normalizeReferer(value);
+  const response = await sendMessage({
+    type: "SET_REFERER_RULES",
+    referer,
+    urls
+  });
+
+  if (response?.error) throw new Error(response.error);
+  return referer;
+}
+
+function normalizeReferer(value) {
+  const input = String(value || "").trim();
+  if (!input) return "";
+
+  let url;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new Error("HTTP Referer tidak valid. Gunakan URL lengkap, misalnya https://example.com/.");
+  }
+
+  if (!/^https?:$/.test(url.protocol)) {
+    throw new Error("HTTP Referer harus memakai protokol http:// atau https://.");
+  }
+
+  if (url.username || url.password) {
+    throw new Error("HTTP Referer tidak boleh berisi username atau password.");
+  }
+
+  url.hash = "";
+  return url.href;
+}
+
+function createPreviewUrl(url) {
+  if (!/^https?:/i.test(url)) return url;
+
+  try {
+    const previewUrl = new URL(url);
+    previewUrl.hash = `image-pocket-${state.previewRevision}`;
+    return previewUrl.href;
+  } catch {
+    return url;
+  }
 }
 
 function toggleImage(id, checked) {
@@ -288,9 +404,12 @@ async function downloadSelected() {
   hideNotice();
   render();
 
-  const items = state.images
-    .filter((image) => state.selected.has(image.id))
-    .map((image) => ({ url: image.url, filename: image.filename }));
+  const selectedImages = state.images.filter((image) => state.selected.has(image.id));
+  const customName = elements.customNameInput.value.trim();
+  const items = selectedImages.map((image, index) => ({
+    url: image.url,
+    filename: createDownloadFilename(image, customName, index, selectedImages.length)
+  }));
 
   try {
     const response = await sendMessage({
@@ -317,6 +436,32 @@ async function downloadSelected() {
     state.downloading = false;
     render();
   }
+}
+
+function createDownloadFilename(image, customName, index, total) {
+  const cleanCustomName = sanitizeFilename(customName);
+  if (!cleanCustomName) return image.filename;
+
+  const customBase = cleanCustomName.replace(/\.(?:avif|bmp|gif|ico|jpe?g|png|svg|tiff?|webp)$/i, "");
+  const imageParts = splitFilename(image.filename);
+  const fallbackExtension = normalizeDownloadExtension(image.type);
+  const extension = imageParts.extension || fallbackExtension;
+  const sequence = total > 1 ? `-${String(index + 1).padStart(3, "0")}` : "";
+
+  return `${customBase || "gambar"}${sequence}${extension ? `.${extension}` : ""}`;
+}
+
+function splitFilename(value) {
+  const filename = String(value || "").trim();
+  const match = filename.match(/^(.*)\.([a-z0-9]{2,5})$/i);
+  if (!match || !match[1]) return { base: filename, extension: "" };
+  return { base: match[1], extension: match[2].toLowerCase() };
+}
+
+function normalizeDownloadExtension(value) {
+  const extension = String(value || "").toLowerCase();
+  if (!extension || extension === "unknown" || extension === "blob" || extension === "image") return "jpg";
+  return extension.replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "").slice(0, 5) || "jpg";
 }
 
 function sendMessage(message) {

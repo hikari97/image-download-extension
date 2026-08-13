@@ -1,10 +1,11 @@
 {
   "name": "image-pocket-extension",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Ekstensi Chrome dan Firefox untuk menemukan serta mengunduh gambar dari halaman web.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "package": "npm run check && npm run build && node scripts/package.mjs"
   }
 }

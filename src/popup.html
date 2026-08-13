@@ -47,6 +47,17 @@
         </label>
       </section>
 
+      <section class="referer-bar" aria-label="Pengaturan HTTP Referer">
+        <div class="referer-heading">
+          <label for="refererInput">HTTP Referer untuk preview &amp; download</label>
+          <button id="pageRefererButton" class="text-button" type="button">Pakai URL halaman</button>
+        </div>
+        <div class="referer-controls">
+          <input id="refererInput" type="url" inputmode="url" placeholder="Kosongkan untuk tanpa Referer" spellcheck="false" />
+          <button id="applyRefererButton" type="button">Terapkan</button>
+        </div>
+      </section>
+
       <section class="selection-bar">
         <div>
           <strong id="resultCount">0 gambar</strong>
@@ -77,10 +88,16 @@
       </div>
 
       <footer class="footer">
-        <label class="folder-field">
-          <span>Simpan ke folder</span>
-          <input id="folderInput" type="text" value="Image Pocket" maxlength="120" aria-label="Folder unduhan" />
-        </label>
+        <div class="download-fields">
+          <label class="download-field">
+            <span>Simpan ke folder</span>
+            <input id="folderInput" type="text" value="Image Pocket" maxlength="120" aria-label="Folder unduhan" />
+          </label>
+          <label class="download-field">
+            <span>Custom nama file</span>
+            <input id="customNameInput" type="text" maxlength="120" placeholder="Pakai nama asli" aria-label="Custom nama file" />
+          </label>
+        </div>
         <button id="downloadButton" class="download-button" type="button" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />

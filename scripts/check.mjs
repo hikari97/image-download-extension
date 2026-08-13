@@ -15,7 +15,7 @@ for (const name of manifests) {
   console.log(`✓ Manifest ${name} valid`);
 }
 
-for (const file of ["src/background.js", "src/popup.js", "scripts/build.mjs"]) {
+for (const file of ["src/background.js", "src/popup.js", "scripts/build.mjs", "scripts/package.mjs"]) {
   execFileSync(process.execPath, ["--check", resolve(root, file)], { stdio: "inherit" });
   console.log(`✓ Sintaks ${file} valid`);
 }
