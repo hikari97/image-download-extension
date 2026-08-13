@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Preview fixture</title>
+    <link rel="stylesheet" href="../src/popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand-mark"></div>
+        <div class="brand-copy"><h1>Image Pocket</h1><p>preview.test</p></div>
+      </header>
+      <section class="toolbar"><label class="search-field"><input value="" placeholder="Cari gambar" /></label></section>
+      <section class="referer-bar"><div class="referer-heading"><label>HTTP Referer</label></div><div class="referer-controls"><input value="https://preview.test/" /><button>Terapkan</button></div></section>
+      <section class="selection-bar"><div><strong>2 gambar</strong><span>2 dipilih</span></div></section>
+      <div class="content">
+        <section class="image-grid">
+          <article class="image-card selected">
+            <input type="checkbox" checked />
+            <div class="thumb"><img alt="Wide preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='300' viewBox='0 0 1200 300'%3E%3Crect width='1200' height='300' fill='%23176b4a'/%3E%3Ccircle cx='150' cy='150' r='90' fill='%23e4f2eb'/%3E%3Ctext x='300' y='178' font-family='sans-serif' font-size='86' fill='white'%3EWIDE IMAGE%3C/text%3E%3C/svg%3E" /></div>
+            <div class="card-meta"><p class="card-name">wide-image.png</p><div class="card-detail"><span>1200 × 300</span><span class="file-type">PNG</span></div></div>
+            <div class="card-actions"><button class="card-action">Salin link</button><button class="card-action">Buka tab</button></div>
+          </article>
+          <article class="image-card selected">
+            <input type="checkbox" checked />
+            <div class="thumb"><img alt="Tall preview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='1200' viewBox='0 0 300 1200'%3E%3Crect width='300' height='1200' fill='%232b4d7a'/%3E%3Ccircle cx='150' cy='150' r='90' fill='%23e4f2eb'/%3E%3Ctext x='70' y='340' font-family='sans-serif' font-size='52' fill='white' transform='rotate(90 70 340)'%3ETALL IMAGE%3C/text%3E%3C/svg%3E" /></div>
+            <div class="card-meta"><p class="card-name">tall-image.png</p><div class="card-detail"><span>300 × 1200</span><span class="file-type">PNG</span></div></div>
+            <div class="card-actions"><button class="card-action">Salin link</button><button class="card-action">Buka tab</button></div>
+          </article>
+        </section>
+      </div>
+      <footer class="footer"><div class="download-fields"><label class="download-field"><span>Simpan ke folder</span><input value="Image Pocket" /></label></div><button class="download-button">Unduh 2 gambar</button></footer>
+    </main>
+    <script>
+      window.addEventListener("load", () => {
+        const grid = document.querySelector(".image-grid");
+        const firstCard = document.querySelector(".image-card");
+        const metrics = {
+          gridColumns: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+          gridClientWidth: grid.clientWidth,
+          gridScrollWidth: grid.scrollWidth,
+          cardWidth: firstCard.getBoundingClientRect().width,
+          gridClientHeight: grid.clientHeight,
+          gridScrollHeight: grid.scrollHeight,
+          actionCount: document.querySelectorAll(".card-action").length,
+          cards: [...document.querySelectorAll(".image-card")].map((card) => ({
+            height: card.getBoundingClientRect().height,
+            scrollHeight: card.scrollHeight
+          })),
+          previews: [...document.querySelectorAll(".thumb img")].map((image) => ({
+            thumbWidth: image.parentElement.getBoundingClientRect().width,
+            thumbHeight: image.parentElement.getBoundingClientRect().height,
+            imageBoxWidth: image.getBoundingClientRect().width,
+            imageBoxHeight: image.getBoundingClientRect().height,
+            naturalWidth: image.naturalWidth,
+            naturalHeight: image.naturalHeight,
+            objectFit: getComputedStyle(image).objectFit
+          }))
+        };
+        document.body.dataset.previewMetrics = btoa(JSON.stringify(metrics));
+      });
+    </script>
+  </body>
+</html>

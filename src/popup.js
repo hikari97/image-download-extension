@@ -260,7 +260,7 @@ function render() {
 }
 
 function createImageCard(image) {
-  const card = document.createElement("label");
+  const card = document.createElement("article");
   card.className = `image-card${state.selected.has(image.id) ? " selected" : ""}`;
   card.title = image.filename;
 
@@ -271,18 +271,31 @@ function createImageCard(image) {
   checkbox.addEventListener("change", () => toggleImage(image.id, checkbox.checked));
 
   const thumb = document.createElement("div");
-  thumb.className = "thumb";
+  const hasKnownDimensions = Number.isFinite(image.width)
+    && Number.isFinite(image.height)
+    && image.width > 0
+    && image.height > 0;
+  thumb.className = `thumb${hasKnownDimensions ? "" : " ratio-pending"}`;
   const img = document.createElement("img");
-  img.src = createPreviewUrl(image.url);
+  if (hasKnownDimensions) {
+    img.width = Math.round(image.width);
+    img.height = Math.round(image.height);
+  }
   img.alt = "";
   img.loading = "lazy";
+  img.decoding = "async";
+  img.addEventListener("load", () => {
+    thumb.classList.remove("ratio-pending");
+  });
   img.addEventListener("error", () => {
+    thumb.classList.remove("ratio-pending");
     img.remove();
     thumb.classList.add("preview-error");
     thumb.textContent = image.url.startsWith("blob:")
       ? "Preview blob hanya tersedia di halaman asal"
       : "Preview gagal — coba ubah HTTP Referer";
   });
+  img.src = createPreviewUrl(image.url);
   thumb.append(img);
 
   const meta = document.createElement("div");
@@ -299,8 +312,89 @@ function createImageCard(image) {
   type.textContent = image.type;
   detail.append(dimensions, type);
   meta.append(name, detail);
-  card.append(checkbox, thumb, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+  const copyButton = createCardAction(
+    "Salin link",
+    '<path d="M9 8.5V7A2.5 2.5 0 0 1 11.5 4.5H17A2.5 2.5 0 0 1 19.5 7v5.5A2.5 2.5 0 0 1 17 15h-1.5"/><rect x="4.5" y="9" width="11" height="10.5" rx="2.5"/>'
+  );
+  copyButton.addEventListener("click", () => copyImageLink(image.url, copyButton));
+
+  const openButton = createCardAction(
+    "Buka tab",
+    '<path d="M13 5h6v6M19 5l-8 8"/><path d="M17 13v4a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h4"/>'
+  );
+  openButton.addEventListener("click", () => openImageInNewTab(image.url));
+
+  actions.append(copyButton, openButton);
+  card.append(checkbox, thumb, meta, actions);
   return card;
+}
+
+function createCardAction(label, iconMarkup) {
+  const button = document.createElement("button");
+  button.className = "card-action";
+  button.type = "button";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = iconMarkup;
+
+  const text = document.createElement("span");
+  text.textContent = label;
+  button.append(icon, text);
+  return button;
+}
+
+async function copyImageLink(url, button) {
+  const label = button.querySelector("span");
+
+  try {
+    await writeClipboardText(url);
+    label.textContent = "Tersalin";
+    button.classList.add("success");
+    setTimeout(() => {
+      label.textContent = "Salin link";
+      button.classList.remove("success");
+    }, 1400);
+  } catch (error) {
+    showNotice(`Link tidak dapat disalin: ${readError(error)}`, true);
+  }
+}
+
+async function writeClipboardText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Browser menolak akses clipboard.");
+}
+
+async function openImageInNewTab(url) {
+  if (url.startsWith("blob:")) {
+    showNotice("Link blob hanya berlaku di halaman asal dan tidak dapat dibuka dari popup ekstensi.", true);
+    return;
+  }
+
+  try {
+    await createTab({ url, active: true });
+  } catch (error) {
+    showNotice(`Gambar tidak dapat dibuka: ${readError(error)}`, true);
+  }
 }
 
 async function applyCustomReferer() {
@@ -406,6 +500,20 @@ async function downloadSelected() {
 
   const selectedImages = state.images.filter((image) => state.selected.has(image.id));
   const customName = elements.customNameInput.value.trim();
+  const requestedFolder = normalizeFolder(elements.folderInput.value) || "Image Pocket";
+  let downloadReferer;
+
+  try {
+    downloadReferer = normalizeReferer(elements.refererInput.value);
+  } catch (error) {
+    elements.refererInput.classList.add("invalid");
+    showNotice(readError(error), true);
+    state.downloading = false;
+    render();
+    return;
+  }
+
+  elements.folderInput.value = requestedFolder;
   const items = selectedImages.map((image, index) => ({
     url: image.url,
     filename: createDownloadFilename(image, customName, index, selectedImages.length)
@@ -415,7 +523,8 @@ async function downloadSelected() {
     const response = await sendMessage({
       type: "DOWNLOAD_IMAGES",
       items,
-      folder: elements.folderInput.value.trim() || "Image Pocket",
+      folder: requestedFolder,
+      referer: downloadReferer,
       saveAs: false
     });
 
@@ -428,7 +537,13 @@ async function downloadSelected() {
     if (failed.length) {
       showNotice(`${successful} berhasil dimulai, ${failed.length} gagal. ${failed[0].error}`, true);
     } else {
-      showNotice(`${successful} gambar mulai diunduh ke folder “${elements.folderInput.value.trim() || "Image Pocket"}”.`);
+      const savedFolder = response.folder || requestedFolder;
+      const refererStatus = response.downloadMethod === "verified-fetch"
+        ? " Custom Referer diverifikasi ketika file diambil, lalu hasilnya disimpan sebagai Blob lokal."
+        : response.refererApplied
+          ? " Custom Referer diterapkan langsung pada request download."
+          : "";
+      showNotice(`${successful} gambar mulai diunduh ke “Downloads/${savedFolder}”. Folder dibuat otomatis jika belum ada.${refererStatus}`);
     }
   } catch (error) {
     showNotice(`Gagal mengunduh: ${readError(error)}`, true);
@@ -436,6 +551,22 @@ async function downloadSelected() {
     state.downloading = false;
     render();
   }
+}
+
+function normalizeFolder(value) {
+  const reservedWindowsNames = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+
+  return String(value || "")
+    .split(/[\\/]+/)
+    .map((part) => part
+      .replace(/[<>:"|?*\u0000-\u001f]/g, "-")
+      .replace(/^\.+|[. ]+$/g, "")
+      .trim()
+      .slice(0, 60))
+    .filter((part) => part && part !== "." && part !== "..")
+    .map((part) => reservedWindowsNames.test(part) ? `_${part}` : part)
+    .join("/")
+    .slice(0, 120);
 }
 
 function createDownloadFilename(image, customName, index, total) {
@@ -480,6 +611,16 @@ function queryTabs(queryInfo) {
       const error = chrome.runtime.lastError;
       if (error) reject(new Error(error.message));
       else resolve(tabs);
+    });
+  });
+}
+
+function createTab(createProperties) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.create(createProperties, (tab) => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve(tab);
     });
   });
 }

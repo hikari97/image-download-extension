@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Image Pocket",
-  "version": "1.2.0",
+  "version": "1.5.2",
+  "minimum_chrome_version": "109",
   "description": "Temukan, pilih, dan unduh gambar dari halaman web.",
   "permissions": [
     "activeTab",
+    "clipboardWrite",
     "declarativeNetRequestWithHostAccess",
     "downloads",
+    "offscreen",
     "scripting"
   ],
   "host_permissions": [
